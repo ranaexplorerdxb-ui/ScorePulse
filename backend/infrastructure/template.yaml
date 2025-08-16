@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: ScorePulse Serverless Infrastructure
+Resources:
+  ScoreTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ScorePulseScores
+      AttributeDefinitions:
+        - AttributeName: MatchId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: MatchId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+  ScoreApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        AddDefaultAuthorizerToCorsPreflight: false
+      Cors:
+        AllowMethods: "GET,POST,PUT,DELETE,OPTIONS"
+        AllowHeaders: "Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token"
+        AllowOrigin: "*"
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: ScorePulseUserPool
+  ScoreLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: score.handler
+      Runtime: python3.11
+      CodeUri: ./src/
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ScoreTable
+        - SNSPublishMessagePolicy:
+            TopicName: !Ref ScoreSNSTopic
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ScoreTable
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ScoreApi
+            Path: /scores
+            Method: ANY
+        Schedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(10 seconds)
+  ScoreSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: ScorePulseLiveScores
+  StaticAssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: scorepulse-static-assets
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+          - DomainName: !GetAtt StaticAssetsBucket.DomainName
+            Id: S3Origin
+            S3OriginConfig: {}
+        Enabled: true
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: index.html
