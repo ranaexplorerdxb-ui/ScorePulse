@@ -1,4 +1,6 @@
 
+
+![ScorePulse Logo](scorepulse.png)
 # ScorePulse
 
 ScorePulse is a real-time sports scoreboard platform featuring live scores, match schedules, and stats for multiple sports. Built on a modern serverless AWS architecture, ScorePulse provides fast, scalable, and secure access to sports data for users worldwide.
